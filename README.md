@@ -88,12 +88,12 @@ sudo npm start
 
 2. Open a web browser and navigate to:
 ```
-http://<raspberry-pi-ip>:3000
+http://<raspberry-pi-ip>:80
 ```
 
 Or if running locally:
 ```
-http://localhost:3000
+http://localhost:80
 ```
 
 3. Use the ON/OFF buttons to control each GPIO pin
@@ -145,7 +145,7 @@ sudo npm start
 ```
 
 ### Port Already in Use
-If port 3000 is already in use, you can change it in [server.js:5](server.js#L5)
+If port 80 is already in use, you can change it in [server.js:5](server.js#L5)
 
 ### GPIO Not Working
 1. Ensure you're running on a Raspberry Pi

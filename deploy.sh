@@ -173,7 +173,7 @@ fi
 echo ""
 print_info "Deployment complete!"
 echo ""
-print_info "Access the web interface at: http://${PI_HOST}:3000"
+print_info "Access the web interface at: http://${PI_HOST}"
 print_info "Service commands:"
 print_info "  Start:   sudo systemctl start powerswitch"
 print_info "  Stop:    sudo systemctl stop powerswitch"
