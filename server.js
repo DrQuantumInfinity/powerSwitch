@@ -107,6 +107,15 @@ if (isRaspberryPi) {
                     // Pin wasn't exported, that's fine
                 }
 
+                // Use WiringPi gpio command to set pull-up resistor
+                const { execSync } = require('child_process');
+                try {
+                    execSync(`gpio -g mode ${pin} up`, { stdio: 'ignore' });
+                    console.log(`Set pull-up resistor on Button ${index} (GPIO ${pin}) via WiringPi`);
+                } catch (gpioErr) {
+                    console.warn(`Warning: Could not set pull-up via WiringPi for GPIO ${pin}:`, gpioErr.message);
+                }
+
                 // Initialize button with pull-up resistor (active low)
                 buttons[index] = new Gpio(pin+512, 'in', 'falling', {debounceTimeout: 50});
 
