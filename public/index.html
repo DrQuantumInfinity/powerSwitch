@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPIO Controller</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Raspberry Pi GPIO Controller</h1>
+        <div class="grid">
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-17" data-pin="17" onclick="editLabel(17)">GPIO 17</h3>
+                <div class="status" id="status-17">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(17, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(17, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-18" data-pin="18" onclick="editLabel(18)">GPIO 18</h3>
+                <div class="status" id="status-18">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(18, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(18, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-22" data-pin="22" onclick="editLabel(22)">GPIO 22</h3>
+                <div class="status" id="status-22">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(22, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(22, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-23" data-pin="23" onclick="editLabel(23)">GPIO 23</h3>
+                <div class="status" id="status-23">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(23, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(23, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-24" data-pin="24" onclick="editLabel(24)">GPIO 24</h3>
+                <div class="status" id="status-24">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(24, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(24, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-25" data-pin="25" onclick="editLabel(25)">GPIO 25</h3>
+                <div class="status" id="status-25">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(25, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(25, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-27" data-pin="27" onclick="editLabel(27)">GPIO 27</h3>
+                <div class="status" id="status-27">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(27, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(27, 0)">OFF</button>
+                </div>
+            </div>
+            <div class="gpio-control">
+                <h3 class="gpio-label" id="label-4" data-pin="4" onclick="editLabel(4)">GPIO 4</h3>
+                <div class="status" id="status-4">OFF</div>
+                <div class="button-group">
+                    <button class="btn btn-on" onclick="setGPIO(4, 1)">ON</button>
+                    <button class="btn btn-off" onclick="setGPIO(4, 0)">OFF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
