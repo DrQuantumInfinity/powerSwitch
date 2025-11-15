@@ -12,7 +12,9 @@ app.use(express.static('public'));
 // GPIO setup - only import onoff on Raspberry Pi
 let Gpio;
 let gpios = {};
+let buttons = {};
 const GPIO_PINS = [19, 13, 6, 5, 22, 27, 17, 4];
+const BUTTON_PINS = [21, 20, 16, 12, 25, 24, 23, 18]; // Button GPIOs for each relay
 // const GPIO_PINS = [7, 11, 13 , 15 , 29, 31, 33, 35];
 
 // GPIO labels storage
@@ -48,11 +50,32 @@ function saveLabels() {
 // Check if running on Raspberry Pi
 const isRaspberryPi = process.platform === 'linux' && (process.arch === 'arm' || process.arch === 'arm64' || process.arch.startsWith('arm'));
 
+// Function to toggle relay state
+function toggleRelay(index) {
+    const pin = GPIO_PINS[index];
+    try {
+        let currentState;
+        if (gpios[index]) {
+            currentState = gpios[index].readSync();
+            const newState = currentState === 0 ? 1 : 0;
+            gpios[index].writeSync(newState);
+            console.log(`Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'HIGH' : 'LOW'}`);
+        } else {
+            currentState = gpioStates[index];
+            const newState = currentState === 0 ? 1 : 0;
+            gpioStates[index] = newState;
+            console.log(`[SIMULATION] Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'HIGH' : 'LOW'}`);
+        }
+    } catch (err) {
+        console.error(`Error toggling Relay ${index} (GPIO ${pin}):`, err.message);
+    }
+}
+
 if (isRaspberryPi) {
     try {
         Gpio = require('onoff').Gpio;
 
-        // Initialize GPIO pins
+        // Initialize relay output pins
         GPIO_PINS.forEach((pin, index) => {
             try {
                 // Try to unexport first in case it's already exported
@@ -69,6 +92,40 @@ if (isRaspberryPi) {
                 console.log(`Relay ${index} (GPIO ${pin}) initialized`);
             } catch (err) {
                 console.error(`Error initializing Relay ${index} (GPIO ${pin}):`, err.message);
+                console.error(`  Make sure you're running with sudo and the pin is not in use`);
+            }
+        });
+
+        // Initialize button input pins
+        BUTTON_PINS.forEach((pin, index) => {
+            try {
+                // Try to unexport first in case it's already exported
+                try {
+                    const existingGpio = new Gpio(pin+512, 'in', 'falling', {debounceTimeout: 50});
+                    existingGpio.unexport();
+                } catch (e) {
+                    // Pin wasn't exported, that's fine
+                }
+
+                // Initialize button with pull-up resistor (active low)
+                buttons[index] = new Gpio(pin+512, 'in', 'falling', {debounceTimeout: 50});
+
+                // Watch for button presses
+                buttons[index].watch((err, value) => {
+                    console.log(`watched! value: ${value},  index: ${index}`);
+                    if (err) {
+                        console.error(`Error watching Button ${index} (GPIO ${pin}):`, err.message);
+                        return;
+                    }
+                    // Button pressed (falling edge - button connects to ground)
+                    if (value === 0) {
+                        toggleRelay(index);
+                    }
+                });
+
+                console.log(`Button ${index} (GPIO ${pin}) initialized`);
+            } catch (err) {
+                console.error(`Error initializing Button ${index} (GPIO ${pin}):`, err.message);
                 console.error(`  Make sure you're running with sudo and the pin is not in use`);
             }
         });
@@ -243,6 +300,8 @@ app.post('/labels/:index', (req, res) => {
 // Cleanup on exit
 process.on('SIGINT', () => {
     console.log('\nCleaning up GPIO...');
+
+    // Cleanup relay outputs
     Object.keys(gpios).forEach(index => {
         try {
             gpios[index].writeSync(0);
@@ -251,11 +310,22 @@ process.on('SIGINT', () => {
             console.error(`Error cleaning up Relay ${index}:`, err.message);
         }
     });
+
+    // Cleanup button inputs
+    Object.keys(buttons).forEach(index => {
+        try {
+            buttons[index].unexport();
+        } catch (err) {
+            console.error(`Error cleaning up Button ${index}:`, err.message);
+        }
+    });
+
     process.exit();
 });
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`GPIO Controller running on http://0.0.0.0:${PORT}`);
     console.log(`Mode: ${Object.keys(gpios).length > 0 ? 'Hardware' : 'Simulation'}`);
-    console.log(`Controlling GPIO pins: ${GPIO_PINS.join(', ')}`);
+    console.log(`Relay GPIO pins: ${GPIO_PINS.join(', ')}`);
+    console.log(`Button GPIO pins: ${BUTTON_PINS.join(', ')}`);
 });
