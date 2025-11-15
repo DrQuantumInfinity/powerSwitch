@@ -99,30 +99,84 @@ sshpass -p "$PI_PASSWORD" rsync -avz --progress \
 
 print_info "Files synced successfully!"
 
-# # Install dependencies on Raspberry Pi
-# print_info "Installing dependencies on Raspberry Pi..."
-# sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "cd ${PI_DIR} && npm install --production" || {
-#     print_error "Failed to install dependencies"
-#     exit 1
-# }
+# Install dependencies on Raspberry Pi
+print_info "Installing dependencies on Raspberry Pi..."
+sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "cd ${PI_DIR} && npm install --production" || {
+    print_error "Failed to install dependencies"
+    exit 1
+}
 
-# print_info "Dependencies installed successfully!"
+print_info "Dependencies installed successfully!"
+
+# Setup systemd service
+print_info "Setting up systemd service..."
+
+# Create a temporary service file with the correct WorkingDirectory
+print_info "Creating systemd service file..."
+sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "cat > /tmp/powerswitch.service << 'EOF'
+[Unit]
+Description=PowerSwitch GPIO Controller
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${PI_DIR}
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+EOF
+" || {
+    print_error "Failed to create service file"
+    exit 1
+}
+
+# Install the service
+print_info "Installing systemd service..."
+sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "
+    echo '${PI_PASSWORD}' | sudo -S mv /tmp/powerswitch.service /etc/systemd/system/powerswitch.service && \
+    echo '${PI_PASSWORD}' | sudo -S chmod 644 /etc/systemd/system/powerswitch.service && \
+    echo '${PI_PASSWORD}' | sudo -S systemctl daemon-reload && \
+    echo '${PI_PASSWORD}' | sudo -S systemctl enable powerswitch.service
+" || {
+    print_error "Failed to install systemd service"
+    exit 1
+}
+
+print_info "Systemd service installed and enabled!"
 
 # Ask if user wants to start the service
 echo ""
-read -p "Do you want to start the application now? (y/n) " -n 1 -r
+read -p "Do you want to start the service now? (y/n) " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Starting application..."
-    sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "cd ${PI_DIR} && echo '${PI_PASSWORD}' | sudo -S pkill -f 'node server.js' 2>/dev/null; echo '${PI_PASSWORD}' | sudo -S nohup node server.js > app.log 2>&1 &"
-    print_info "Application started!"
+    print_info "Starting powerswitch service..."
+    sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "echo '${PI_PASSWORD}' | sudo -S systemctl restart powerswitch.service"
+    sleep 2
+
+    # Check service status
+    print_info "Checking service status..."
+    sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "echo '${PI_PASSWORD}' | sudo -S systemctl status powerswitch.service --no-pager"
+
     echo ""
-    print_info "Access the web interface at: http://${PI_HOST}:3000"
-    print_info "View logs with: sshpass -p '${PI_PASSWORD}' ssh ${PI_USER}@${PI_HOST} 'tail -f ${PI_DIR}/app.log'"
+    print_info "Service started!"
 fi
 
 echo ""
 print_info "Deployment complete!"
-print_info "SSH into your Pi with: sshpass -p '${PI_PASSWORD}' ssh ${PI_USER}@${PI_HOST}"
-print_info "Navigate to app: cd ${PI_DIR}"
-print_info "Start manually: sudo node server.js"
+echo ""
+print_info "Access the web interface at: http://${PI_HOST}:3000"
+print_info "Service commands:"
+print_info "  Start:   sudo systemctl start powerswitch"
+print_info "  Stop:    sudo systemctl stop powerswitch"
+print_info "  Restart: sudo systemctl restart powerswitch"
+print_info "  Status:  sudo systemctl status powerswitch"
+print_info "  Logs:    sudo journalctl -u powerswitch -f"
