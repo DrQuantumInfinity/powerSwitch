@@ -99,14 +99,14 @@ sshpass -p "$PI_PASSWORD" rsync -avz --progress \
 
 print_info "Files synced successfully!"
 
-# Install dependencies on Raspberry Pi
-print_info "Installing dependencies on Raspberry Pi..."
-sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "cd ${PI_DIR} && npm install --production" || {
-    print_error "Failed to install dependencies"
-    exit 1
-}
+# # Install dependencies on Raspberry Pi
+# print_info "Installing dependencies on Raspberry Pi..."
+# sshpass -p "$PI_PASSWORD" ssh -p "$PI_PORT" -o StrictHostKeyChecking=no "${PI_USER}@${PI_HOST}" "cd ${PI_DIR} && npm install --production" || {
+#     print_error "Failed to install dependencies"
+#     exit 1
+# }
 
-print_info "Dependencies installed successfully!"
+# print_info "Dependencies installed successfully!"
 
 # Ask if user wants to start the service
 echo ""

@@ -1,13 +1,10 @@
-// GPIO pins being controlled
-const GPIO_PINS = [17, 18, 22, 23, 24, 25, 27, 4];
-
 // Function to set GPIO state
-async function setGPIO(pin, state) {
+async function setGPIO(index, state) {
     try {
         // Disable all buttons temporarily
         disableButtons(true);
 
-        const response = await fetch(`/gpio/${pin}/${state}`, {
+        const response = await fetch(`/gpio/${index}/${state}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -17,8 +14,8 @@ async function setGPIO(pin, state) {
         const data = await response.json();
 
         if (data.success) {
-            updateStatus(pin, state);
-            console.log(`GPIO ${pin} set to ${state ? 'HIGH' : 'LOW'}`);
+            updateStatus(index, state);
+            console.log(`Relay ${index} set to ${state ? 'HIGH' : 'LOW'}`);
         } else {
             console.error('Error setting GPIO:', data.error);
             alert(`Error: ${data.error}`);
@@ -33,8 +30,8 @@ async function setGPIO(pin, state) {
 }
 
 // Update status display
-function updateStatus(pin, state) {
-    const statusElement = document.getElementById(`status-${pin}`);
+function updateStatus(index, state) {
+    const statusElement = document.getElementById(`status-${index}`);
     if (statusElement) {
         statusElement.textContent = state ? 'ON' : 'OFF';
         statusElement.className = state ? 'status on' : 'status off';
@@ -56,10 +53,10 @@ async function loadGPIOStates() {
         const data = await response.json();
 
         if (data.states) {
-            Object.keys(data.states).forEach(pin => {
-                const state = data.states[pin];
+            Object.keys(data.states).forEach(index => {
+                const state = data.states[index];
                 if (state !== null) {
-                    updateStatus(parseInt(pin), state);
+                    updateStatus(parseInt(index), state);
                 }
             });
 
@@ -84,10 +81,10 @@ async function loadGPIOLabels() {
         const data = await response.json();
 
         if (data.labels) {
-            Object.keys(data.labels).forEach(pin => {
-                const labelElement = document.getElementById(`label-${pin}`);
+            Object.keys(data.labels).forEach(index => {
+                const labelElement = document.getElementById(`label-${index}`);
                 if (labelElement) {
-                    labelElement.textContent = data.labels[pin];
+                    labelElement.textContent = data.labels[index];
                 }
             });
         }
@@ -97,8 +94,8 @@ async function loadGPIOLabels() {
 }
 
 // Function to edit label
-function editLabel(pin) {
-    const labelElement = document.getElementById(`label-${pin}`);
+function editLabel(index) {
+    const labelElement = document.getElementById(`label-${index}`);
     const currentLabel = labelElement.textContent;
 
     // Create input element
@@ -119,7 +116,7 @@ function editLabel(pin) {
 
         if (newLabel && newLabel !== currentLabel) {
             try {
-                const response = await fetch(`/labels/${pin}`, {
+                const response = await fetch(`/labels/${index}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -131,7 +128,7 @@ function editLabel(pin) {
 
                 if (data.success) {
                     labelElement.textContent = data.label;
-                    console.log(`GPIO ${pin} label updated to: ${data.label}`);
+                    console.log(`Relay ${index} label updated to: ${data.label}`);
                 } else {
                     console.error('Error updating label:', data.error);
                     alert(`Error: ${data.error}`);

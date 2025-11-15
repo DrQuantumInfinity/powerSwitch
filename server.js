@@ -12,15 +12,16 @@ app.use(express.static('public'));
 // GPIO setup - only import onoff on Raspberry Pi
 let Gpio;
 let gpios = {};
-const GPIO_PINS = [19, 6, 5, 22, 27, 17, 4];
+const GPIO_PINS = [19, 13, 6, 5, 22, 27, 17, 4];
+// const GPIO_PINS = [7, 11, 13 , 15 , 29, 31, 33, 35];
 
 // GPIO labels storage
 const LABELS_FILE = path.join(__dirname, 'gpio-labels.json');
 let gpioLabels = {};
 
-// Initialize default labels
-GPIO_PINS.forEach(pin => {
-    gpioLabels[pin] = `GPIO ${pin}`;
+// Initialize default labels (using indices 0-7)
+GPIO_PINS.forEach((pin, index) => {
+    gpioLabels[index] = `Relay ${index}`;
 });
 
 // Load labels from file if exists
@@ -45,20 +46,30 @@ function saveLabels() {
 }
 
 // Check if running on Raspberry Pi
-const isRaspberryPi = process.platform === 'linux' && (process.arch === 'arm' || process.arch === 'arm64');
+const isRaspberryPi = process.platform === 'linux' && (process.arch === 'arm' || process.arch === 'arm64' || process.arch.startsWith('arm'));
 
 if (isRaspberryPi) {
     try {
         Gpio = require('onoff').Gpio;
 
         // Initialize GPIO pins
-        GPIO_PINS.forEach(pin => {
+        GPIO_PINS.forEach((pin, index) => {
             try {
-                gpios[pin] = new Gpio(pin, 'out');
-                gpios[pin].writeSync(0); // Initialize to LOW
-                console.log(`GPIO ${pin} initialized`);
+                // Try to unexport first in case it's already exported
+                try {
+                    const existingGpio = new Gpio(pin+512, 'out');
+                    existingGpio.unexport();
+                } catch (e) {
+                    // Pin wasn't exported, that's fine
+                }
+
+                // Now initialize the pin
+                gpios[index] = new Gpio(pin+512, 'out');
+                gpios[index].writeSync(0); // Initialize to LOW
+                console.log(`Relay ${index} (GPIO ${pin}) initialized`);
             } catch (err) {
-                console.error(`Error initializing GPIO ${pin}:`, err.message);
+                console.error(`Error initializing Relay ${index} (GPIO ${pin}):`, err.message);
+                console.error(`  Make sure you're running with sudo and the pin is not in use`);
             }
         });
     } catch (err) {
@@ -71,20 +82,20 @@ if (isRaspberryPi) {
 
 // Store GPIO states for simulation mode
 const gpioStates = {};
-GPIO_PINS.forEach(pin => {
-    gpioStates[pin] = 0;
-});
+for (let i = 0; i < GPIO_PINS.length; i++) {
+    gpioStates[i] = 0;
+}
 
 // API endpoint to set GPIO state
-app.post('/gpio/:pin/:state', (req, res) => {
-    const pin = parseInt(req.params.pin);
+app.post('/gpio/:index/:state', (req, res) => {
+    const index = parseInt(req.params.index);
     const state = parseInt(req.params.state);
 
-    // Validate pin number
-    if (!GPIO_PINS.includes(pin)) {
+    // Validate index
+    if (index < 0 || index >= GPIO_PINS.length) {
         return res.status(400).json({
-            error: 'Invalid GPIO pin',
-            validPins: GPIO_PINS
+            error: 'Invalid relay index',
+            validIndices: `0-${GPIO_PINS.length - 1}`
         });
     }
 
@@ -95,25 +106,28 @@ app.post('/gpio/:pin/:state', (req, res) => {
         });
     }
 
+    const pin = GPIO_PINS[index];
+
     try {
-        if (gpios[pin]) {
+        if (gpios[index]) {
             // Real GPIO control
-            gpios[pin].writeSync(state);
-            console.log(`GPIO ${pin} set to ${state ? 'HIGH' : 'LOW'}`);
+            gpios[index].writeSync(state);
+            console.log(`Relay ${index} (GPIO ${pin}) set to ${state ? 'HIGH' : 'LOW'}`);
         } else {
             // Simulation mode
-            gpioStates[pin] = state;
-            console.log(`[SIMULATION] GPIO ${pin} set to ${state ? 'HIGH' : 'LOW'}`);
+            gpioStates[index] = state;
+            console.log(`[SIMULATION] Relay ${index} (GPIO ${pin}) set to ${state ? 'HIGH' : 'LOW'}`);
         }
 
         res.json({
             success: true,
+            index: index,
             pin: pin,
             state: state,
-            mode: gpios[pin] ? 'hardware' : 'simulation'
+            mode: gpios[index] ? 'hardware' : 'simulation'
         });
     } catch (err) {
-        console.error(`Error setting GPIO ${pin}:`, err.message);
+        console.error(`Error setting Relay ${index} (GPIO ${pin}):`, err.message);
         res.status(500).json({
             error: 'Failed to set GPIO state',
             details: err.message
@@ -122,31 +136,34 @@ app.post('/gpio/:pin/:state', (req, res) => {
 });
 
 // API endpoint to get GPIO state
-app.get('/gpio/:pin', (req, res) => {
-    const pin = parseInt(req.params.pin);
+app.get('/gpio/:index', (req, res) => {
+    const index = parseInt(req.params.index);
 
-    if (!GPIO_PINS.includes(pin)) {
+    if (index < 0 || index >= GPIO_PINS.length) {
         return res.status(400).json({
-            error: 'Invalid GPIO pin',
-            validPins: GPIO_PINS
+            error: 'Invalid relay index',
+            validIndices: `0-${GPIO_PINS.length - 1}`
         });
     }
 
+    const pin = GPIO_PINS[index];
+
     try {
         let state;
-        if (gpios[pin]) {
-            state = gpios[pin].readSync();
+        if (gpios[index]) {
+            state = gpios[index].readSync();
         } else {
-            state = gpioStates[pin];
+            state = gpioStates[index];
         }
 
         res.json({
+            index: index,
             pin: pin,
             state: state,
-            mode: gpios[pin] ? 'hardware' : 'simulation'
+            mode: gpios[index] ? 'hardware' : 'simulation'
         });
     } catch (err) {
-        console.error(`Error reading GPIO ${pin}:`, err.message);
+        console.error(`Error reading Relay ${index} (GPIO ${pin}):`, err.message);
         res.status(500).json({
             error: 'Failed to read GPIO state',
             details: err.message
@@ -158,15 +175,15 @@ app.get('/gpio/:pin', (req, res) => {
 app.get('/gpio', (req, res) => {
     const states = {};
 
-    GPIO_PINS.forEach(pin => {
+    GPIO_PINS.forEach((pin, index) => {
         try {
-            if (gpios[pin]) {
-                states[pin] = gpios[pin].readSync();
+            if (gpios[index]) {
+                states[index] = gpios[index].readSync();
             } else {
-                states[pin] = gpioStates[pin];
+                states[index] = gpioStates[index];
             }
         } catch (err) {
-            states[pin] = null;
+            states[index] = null;
         }
     });
 
@@ -184,15 +201,15 @@ app.get('/labels', (req, res) => {
 });
 
 // API endpoint to update a GPIO label
-app.post('/labels/:pin', (req, res) => {
-    const pin = parseInt(req.params.pin);
+app.post('/labels/:index', (req, res) => {
+    const index = parseInt(req.params.index);
     const {label} = req.body;
 
-    // Validate pin number
-    if (!GPIO_PINS.includes(pin)) {
+    // Validate index
+    if (index < 0 || index >= GPIO_PINS.length) {
         return res.status(400).json({
-            error: 'Invalid GPIO pin',
-            validPins: GPIO_PINS
+            error: 'Invalid relay index',
+            validIndices: `0-${GPIO_PINS.length - 1}`
         });
     }
 
@@ -213,12 +230,12 @@ app.post('/labels/:pin', (req, res) => {
     }
 
     // Update label
-    gpioLabels[pin] = trimmedLabel;
+    gpioLabels[index] = trimmedLabel;
     saveLabels();
 
     res.json({
         success: true,
-        pin: pin,
+        index: index,
         label: trimmedLabel
     });
 });
@@ -226,12 +243,12 @@ app.post('/labels/:pin', (req, res) => {
 // Cleanup on exit
 process.on('SIGINT', () => {
     console.log('\nCleaning up GPIO...');
-    Object.keys(gpios).forEach(pin => {
+    Object.keys(gpios).forEach(index => {
         try {
-            gpios[pin].writeSync(0);
-            gpios[pin].unexport();
+            gpios[index].writeSync(0);
+            gpios[index].unexport();
         } catch (err) {
-            console.error(`Error cleaning up GPIO ${pin}:`, err.message);
+            console.error(`Error cleaning up Relay ${index}:`, err.message);
         }
     });
     process.exit();
