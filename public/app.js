@@ -159,8 +159,31 @@ function editLabel(index) {
     });
 }
 
+// Poll GPIO states every second
+function startPolling() {
+    // Poll every 1000ms (1 second)
+    setInterval(async () => {
+        try {
+            const response = await fetch('/gpio');
+            const data = await response.json();
+
+            if (data.states) {
+                Object.keys(data.states).forEach(index => {
+                    const state = data.states[index];
+                    if (state !== null) {
+                        updateStatus(parseInt(index), state);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error polling GPIO states:', error);
+        }
+    }, 1000);
+}
+
 // Load states and labels when page loads
 window.addEventListener('DOMContentLoaded', () => {
     loadGPIOStates();
     loadGPIOLabels();
+    startPolling();
 });

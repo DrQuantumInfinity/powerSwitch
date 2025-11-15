@@ -55,14 +55,15 @@ function toggleRelay(index) {
     const pin = GPIO_PINS[index];
     try {
         let currentState;
+        let newState;
         if (gpios[index]) {
             currentState = gpios[index].readSync();
-            const newState = currentState === 0 ? 1 : 0;
+            newState = currentState === 0 ? 1 : 0;
             gpios[index].writeSync(newState);
             console.log(`Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'HIGH' : 'LOW'}`);
         } else {
             currentState = gpioStates[index];
-            const newState = currentState === 0 ? 1 : 0;
+            newState = currentState === 0 ? 1 : 0;
             gpioStates[index] = newState;
             console.log(`[SIMULATION] Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'HIGH' : 'LOW'}`);
         }
