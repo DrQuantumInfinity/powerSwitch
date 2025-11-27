@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const app = express();
 const PORT = 80;
@@ -13,9 +14,10 @@ app.use(express.static('public'));
 let Gpio;
 let gpios = {};
 let buttons = {};
+let ipTriggerPin;
 const GPIO_PINS = [19, 13, 6, 5, 22, 27, 17, 4];
 const BUTTON_PINS = [21, 20, 16, 12, 25, 24, 23, 18]; // Button GPIOs for each relay
-// const GPIO_PINS = [7, 11, 13 , 15 , 29, 31, 33, 35];
+const IP_TRIGGER_PIN = 26; // GPIO 35 to trigger IP address display
 
 // GPIO labels storage
 const LABELS_FILE = path.join(__dirname, 'gpio-labels.json');
@@ -49,6 +51,69 @@ function saveLabels() {
 
 // Check if running on Raspberry Pi
 const isRaspberryPi = process.platform === 'linux' && (process.arch === 'arm' || process.arch === 'arm64' || process.arch.startsWith('arm'));
+
+// Function to get Ethernet adapter IP address
+function getEthernetIP() {
+    const interfaces = os.networkInterfaces();
+
+    // Look for ethernet interfaces (eth0, eth1, etc.)
+    for (const interfaceName in interfaces) {
+        if (interfaceName.startsWith('eth')) {
+            const addresses = interfaces[interfaceName];
+            for (const addr of addresses) {
+                // Return the first IPv4 address found
+                if (addr.family === 'IPv4' && !addr.internal) {
+                    return addr.address;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+// Function to display a byte on the 8 GPIO pins
+function displayByteOnGPIOs(byte) {
+    console.log(`Displaying byte: ${byte} (0b${byte.toString(2).padStart(8, '0')})`);
+
+    for (let i = 0; i < 8; i++) {
+        const bitValue = (byte >> i) & 1;
+
+        if (gpios[i]) {
+            // Real GPIO - set bit value (inverted for active-low relays)
+            gpios[i].writeSync(bitValue ? 0 : 1);
+        } else {
+            // Simulation mode
+            gpioStates[i] = bitValue;
+            console.log(`[SIMULATION] GPIO ${i}: ${bitValue}`);
+        }
+    }
+}
+
+// Function to display IP address byte by byte
+async function displayIPAddress() {
+    const ip = getEthernetIP();
+
+    if (!ip) {
+        console.log('No Ethernet IP address found');
+        return;
+    }
+
+    console.log(`Displaying IP address: ${ip}`);
+    const bytes = ip.split('.').map(b => parseInt(b));
+
+    for (let i = 0; i < bytes.length; i++) {
+        console.log(`Byte ${i}: ${bytes[i]}`);
+        displayByteOnGPIOs(bytes[i]);
+
+        // Wait 1 second before next byte
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Clear all GPIOs after display
+    console.log('IP display complete, clearing GPIOs');
+    displayByteOnGPIOs(0);
+}
 
 // Function to toggle relay state
 function toggleRelay(index) {
@@ -139,6 +204,47 @@ if (isRaspberryPi) {
                 console.error(`  Make sure you're running with sudo and the pin is not in use`);
             }
         });
+
+        // Initialize IP trigger pin (GPIO 35)
+        try {
+            // Try to unexport first in case it's already exported
+            try {
+                const existingGpio = new Gpio(IP_TRIGGER_PIN + 512, 'in', 'falling', {debounceTimeout: 50});
+                existingGpio.unexport();
+            } catch (e) {
+                // Pin wasn't exported, that's fine
+            }
+
+            // Use WiringPi gpio command to set pull-up resistor
+            const { execSync } = require('child_process');
+            try {
+                execSync(`gpio -g mode ${IP_TRIGGER_PIN} up`, { stdio: 'ignore' });
+                console.log(`Set pull-up resistor on IP trigger (GPIO ${IP_TRIGGER_PIN}) via WiringPi`);
+            } catch (gpioErr) {
+                console.warn(`Warning: Could not set pull-up via WiringPi for GPIO ${IP_TRIGGER_PIN}:`, gpioErr.message);
+            }
+
+            // Initialize IP trigger pin with pull-up resistor (active low)
+            ipTriggerPin = new Gpio(IP_TRIGGER_PIN + 512, 'in', 'falling', {debounceTimeout: 50});
+
+            // Watch for trigger pin going low
+            ipTriggerPin.watch((err, value) => {
+                if (err) {
+                    console.error(`Error watching IP trigger pin (GPIO ${IP_TRIGGER_PIN}):`, err.message);
+                    return;
+                }
+                // Trigger activated (falling edge - pin goes to ground)
+                if (value === 0) {
+                    console.log('IP display trigger activated!');
+                    displayIPAddress();
+                }
+            });
+
+            console.log(`IP trigger pin (GPIO ${IP_TRIGGER_PIN}) initialized`);
+        } catch (err) {
+            console.error(`Error initializing IP trigger pin (GPIO ${IP_TRIGGER_PIN}):`, err.message);
+            console.error(`  Make sure you're running with sudo and the pin is not in use`);
+        }
     } catch (err) {
         console.error('Error loading onoff module:', err.message);
         console.log('Running in simulation mode');
@@ -330,6 +436,16 @@ process.on('SIGINT', () => {
         }
     });
 
+    // Cleanup IP trigger pin
+    if (ipTriggerPin) {
+        try {
+            ipTriggerPin.unexport();
+            console.log('IP trigger pin cleaned up');
+        } catch (err) {
+            console.error('Error cleaning up IP trigger pin:', err.message);
+        }
+    }
+
     process.exit();
 });
 
@@ -338,4 +454,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`Mode: ${Object.keys(gpios).length > 0 ? 'Hardware' : 'Simulation'}`);
     console.log(`Relay GPIO pins: ${GPIO_PINS.join(', ')}`);
     console.log(`Button GPIO pins: ${BUTTON_PINS.join(', ')}`);
+    console.log(`IP trigger pin: ${IP_TRIGGER_PIN}`);
 });
