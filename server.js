@@ -60,12 +60,12 @@ function toggleRelay(index) {
             currentState = gpios[index].readSync();
             newState = currentState === 0 ? 1 : 0;
             gpios[index].writeSync(newState);
-            console.log(`Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'HIGH' : 'LOW'}`);
+            console.log(`Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'LOW' : 'HIGH'}`);
         } else {
             currentState = gpioStates[index];
             newState = currentState === 0 ? 1 : 0;
             gpioStates[index] = newState;
-            console.log(`[SIMULATION] Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'HIGH' : 'LOW'}`);
+            console.log(`[SIMULATION] Button press: Relay ${index} (GPIO ${pin}) toggled to ${newState ? 'LOW' : 'HIGH'}`);
         }
     } catch (err) {
         console.error(`Error toggling Relay ${index} (GPIO ${pin}):`, err.message);
@@ -89,7 +89,7 @@ if (isRaspberryPi) {
 
                 // Now initialize the pin
                 gpios[index] = new Gpio(pin+512, 'out');
-                gpios[index].writeSync(0); // Initialize to LOW
+                gpios[index].writeSync(1); // Initialize to HIGH
                 console.log(`Relay ${index} (GPIO ${pin}) initialized`);
             } catch (err) {
                 console.error(`Error initializing Relay ${index} (GPIO ${pin}):`, err.message);
@@ -108,16 +108,16 @@ if (isRaspberryPi) {
                     // Pin wasn't exported, that's fine
                 }
 
-                // Use WiringPi gpio command to set pull-up resistor
+                // Use WiringPi gpio command to set pull-down resistor
                 const { execSync } = require('child_process');
                 try {
-                    execSync(`gpio -g mode ${pin} up`, { stdio: 'ignore' });
-                    console.log(`Set pull-up resistor on Button ${index} (GPIO ${pin}) via WiringPi`);
+                    execSync(`gpio -g mode ${pin} down`, { stdio: 'ignore' });
+                    console.log(`Set pull-down resistor on Button ${index} (GPIO ${pin}) via WiringPi`);
                 } catch (gpioErr) {
-                    console.warn(`Warning: Could not set pull-up via WiringPi for GPIO ${pin}:`, gpioErr.message);
+                    console.warn(`Warning: Could not set pull-down via WiringPi for GPIO ${pin}:`, gpioErr.message);
                 }
 
-                // Initialize button with pull-up resistor (active low)
+                // Initialize button with pull-down resistor (active low)
                 buttons[index] = new Gpio(pin+512, 'in', 'falling', {debounceTimeout: 50});
 
                 // Watch for button presses
@@ -150,7 +150,7 @@ if (isRaspberryPi) {
 // Store GPIO states for simulation mode
 const gpioStates = {};
 for (let i = 0; i < GPIO_PINS.length; i++) {
-    gpioStates[i] = 0;
+    gpioStates[i] = 1;
 }
 
 // API endpoint to set GPIO state
@@ -178,12 +178,12 @@ app.post('/gpio/:index/:state', (req, res) => {
     try {
         if (gpios[index]) {
             // Real GPIO control
-            gpios[index].writeSync(state);
-            console.log(`Relay ${index} (GPIO ${pin}) set to ${state ? 'HIGH' : 'LOW'}`);
+            gpios[index].writeSync(state ? 0 : 1);
+            console.log(`Relay ${index} (GPIO ${pin}) set to ${state ? 'LOW' : 'HIGH'}`);
         } else {
             // Simulation mode
-            gpioStates[index] = state;
-            console.log(`[SIMULATION] Relay ${index} (GPIO ${pin}) set to ${state ? 'HIGH' : 'LOW'}`);
+            gpioStates[index] = !state;
+            console.log(`[SIMULATION] Relay ${index} (GPIO ${pin}) set to ${state ? 'LOW' : 'HIGH'}`);
         }
 
         res.json({
@@ -218,7 +218,7 @@ app.get('/gpio/:index', (req, res) => {
     try {
         let state;
         if (gpios[index]) {
-            state = gpios[index].readSync();
+            state = !gpios[index].readSync();
         } else {
             state = gpioStates[index];
         }
@@ -245,7 +245,7 @@ app.get('/gpio', (req, res) => {
     GPIO_PINS.forEach((pin, index) => {
         try {
             if (gpios[index]) {
-                states[index] = gpios[index].readSync();
+                states[index] = !gpios[index].readSync();
             } else {
                 states[index] = gpioStates[index];
             }
@@ -314,7 +314,7 @@ process.on('SIGINT', () => {
     // Cleanup relay outputs
     Object.keys(gpios).forEach(index => {
         try {
-            gpios[index].writeSync(0);
+            gpios[index].writeSync(1);
             gpios[index].unexport();
         } catch (err) {
             console.error(`Error cleaning up Relay ${index}:`, err.message);
