@@ -15,7 +15,7 @@ async function setGPIO(index, state) {
 
         if (data.success) {
             updateStatus(index, state);
-            console.log(`Relay ${index} set to ${state ? 'HIGH' : 'LOW'}`);
+            console.log(`Relay ${index} set to ${state ? 'ON' : 'OFF'}`);
         } else {
             console.error('Error setting GPIO:', data.error);
             alert(`Error: ${data.error}`);
